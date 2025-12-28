@@ -1,509 +1,508 @@
-const canvas = document.getElementById('game-canvas');
-const ctx = canvas.getContext('2d');
-const playerSprite = document.getElementById('player-sprite');
-const monsterSprite = document.getElementById('monster-sprite');
-const hud = document.getElementById('hud');
-const paperCountDisplay = document.getElementById('paper-count');
+// --- CONFIGURAÇÃO E ASSETS ---
+const assets = {
+    player: {
+        idle: 'player/parada.gif',
+        walk: 'player/andando.gif',
+        jump: 'player/pulando.gif',
+        crouch: 'player/agachar.gif',
+        dead: 'player/morri.gif'
+    },
+    monster: {
+        walk: 'monster/andar.gif',
+        attack: 'monster/ataque.gif'
+    }
+};
 
-// Áudios
-const audios = {
-    inicial: document.getElementById('audio-inicial'),
+const sounds = {
+    intro: document.getElementById('audio-inicial'),
     vinhas: document.getElementById('audio-vinhas'),
     grito: document.getElementById('audio-grito'),
     janela: document.getElementById('audio-janela'),
-    passos: document.getElementById('audio-passos-monster'),
-    ataque: document.getElementById('audio-monster-ataque'),
+    passosMonster: document.getElementById('audio-passos-monster'),
+    ataqueMonster: document.getElementById('audio-monster-ataque'),
     playerDead: document.getElementById('audio-player-dead')
 };
 
-// Configuração
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
-let gameState = 'MENU'; // MENU, DIALOGUE, PLAYING, GAMEOVER
-let currentLevel = 'STREET'; // STREET, COURTYARD, ROOF, MAZE
+// --- VARIÁVEIS DE ESTADO ---
+let gameState = 'MENU'; // MENU, INTRO, PLAYING, GAMEOVER
+let currentScene = 'STREET'; // STREET, COURTYARD, ROOF, MAZE
+let player = {
+    x: 50, y: 0, w: 60, h: 100,
+    vx: 0, vy: 0, speed: 5, jumpPower: 12,
+    grounded: false, facingLeft: true,
+    isCrouching: false, isDead: false,
+    element: null
+};
+let monster = {
+    x: 0, y: 0, w: 80, h: 120,
+    speed: 3.5, active: false,
+    facingLeft: true, attacking: false,
+    element: null
+};
+let keys = {};
 let papersCollected = 0;
-let dialogueQueue = [];
-let dialogueCallback = null;
-let lastCheckpoint = 'START';
+let totalPapers = 15;
+let platforms = [];
+let walls = [];
+let interactables = [];
+let hidingSpots = [];
+let papers = [];
 
-// Player
-const player = {
-    x: 100, y: canvas.height - 150, w: 64, h: 96,
-    vx: 0, vy: 0, speed: 5, jumpForce: 12, gravity: 0.6,
-    grounded: false, state: 'parada', facingLeft: true,
-    dead: false, crouching: false
-};
+// --- ELEMENTOS DOM ---
+const world = document.getElementById('world');
+const uiPrompt = document.getElementById('interaction-prompt');
+const blackScreen = document.getElementById('black-screen');
+const introText = document.getElementById('intro-text');
+const dialogueBox = document.getElementById('dialogue-box');
 
-// Monstro
-const monster = {
-    x: -200, y: 0, w: 80, h: 100, speed: 3.5, active: false, state: 'andar', facingLeft: true
-};
+// --- INICIALIZAÇÃO ---
+document.getElementById('btn-start').addEventListener('click', startGame);
 
-// Inputs
-const keys = { right: false, left: false, up: false, down: false, interact: false };
-
-// Event Listeners
 window.addEventListener('keydown', (e) => {
-    if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
-    if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
-    if(e.code === 'KeyW' || e.code === 'ArrowUp') keys.up = true;
-    if(e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = true;
-    if(e.code === 'KeyE') keys.interact = true;
+    keys[e.key.toLowerCase()] = true;
+    if (gameState === 'PLAYING' && !player.isDead) {
+        if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w') {
+            if (player.grounded && !player.isCrouching) player.vy = -player.jumpPower;
+        }
+        if (e.key.toLowerCase() === 'e') tryInteract();
+    }
 });
 
-window.addEventListener('keyup', (e) => {
-    if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
-    if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
-    if(e.code === 'KeyW' || e.code === 'ArrowUp') keys.up = false;
-    if(e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = false;
-    if(e.code === 'KeyE') keys.interact = false;
-});
+window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 
-document.getElementById('start-btn').addEventListener('click', () => {
-    document.getElementById('menu-screen').classList.add('hidden');
-    fadeOutAudio(audios.inicial);
-    startGame(true);
-});
-
-// Assets Paths (Helper)
-const getAsset = (folder, name) => `/static/${folder}/${name}`;
-
-// --- Engine ---
-
-function fadeOutAudio(audio) {
+function startGame() {
+    document.getElementById('start-screen').classList.add('hidden');
+    sounds.intro.play();
+    
+    // Fade out audio inicial
     let vol = 1;
-    let interval = setInterval(() => {
+    let fade = setInterval(() => {
         if (vol > 0) {
-            vol -= 0.1;
-            audio.volume = Math.max(0, vol);
+            vol -= 0.05;
+            sounds.intro.volume = Math.max(0, vol);
         } else {
-            clearInterval(interval);
-            audio.pause();
-            audio.currentTime = 0;
+            clearInterval(fade);
+            sounds.intro.pause();
         }
     }, 200);
+
+    gameState = 'INTRO';
+    blackScreen.classList.remove('hidden');
+    blackScreen.style.opacity = 1;
+
+    // Sequência de Texto
+    const text = "Parece-que-aqueles-imbecis-me-colocaram-para-pegar-a-cola-da-prova-de-novo...\nTão-estressante...\nVamos-acabar-logo-com-isso.";
+    typeWriter(text, introText, () => {
+        setTimeout(() => {
+            blackScreen.style.opacity = 0;
+            setTimeout(() => {
+                blackScreen.classList.add('hidden');
+                loadScene('STREET');
+            }, 2000);
+        }, 1000);
+    });
 }
 
-function typeWriter(text, callback) {
-    const el = document.getElementById('typing-text');
-    const screen = document.getElementById('dialogue-screen');
-    screen.classList.remove('hidden');
-    el.innerHTML = '';
-    gameState = 'DIALOGUE';
-    
+function typeWriter(text, element, callback) {
+    element.innerText = "";
     let i = 0;
-    let speed = 50; 
-    
     function type() {
         if (i < text.length) {
-            el.innerHTML += text.charAt(i);
+            element.innerText += text.charAt(i);
             i++;
-            setTimeout(type, speed);
-        } else {
-            setTimeout(() => {
-                screen.classList.add('hidden');
-                gameState = 'PLAYING';
-                if(callback) callback();
-            }, 2000);
+            setTimeout(type, 50);
+        } else if (callback) {
+            callback();
         }
     }
     type();
 }
 
-function startGame(fromBeginning) {
-    audios.inicial.play();
-    if(fromBeginning) {
-        lastCheckpoint = 'START';
-        currentLevel = 'STREET';
-        const introText = "Parece-que-aqueles-imbecis-me-colocaram-para-pegar-a-cola-da-prova-de-novo...\nTão-estressante...\nVamos-acabar-logo-com-isso.";
-        
-        // Simular fade out do menu e in do jogo
+function showDialogue(text, duration = 4000, callback) {
+    dialogueBox.classList.remove('hidden');
+    typeWriter(text, dialogueBox, () => {
         setTimeout(() => {
-            typeWriter(introText, () => {
-                player.x = 50;
-                player.y = canvas.height - 150;
-            });
-        }, 1000);
-    } else {
-        // Reiniciar estado
-        gameState = 'PLAYING';
-        player.dead = false;
-        playerSprite.classList.remove('hidden');
-        document.getElementById('game-over-screen').classList.add('hidden');
+            dialogueBox.classList.add('hidden');
+            if(callback) callback();
+        }, duration);
+    });
+}
+
+// --- SISTEMA DE CENAS ---
+function loadScene(sceneName) {
+    currentScene = sceneName;
+    gameState = 'PLAYING';
+    world.innerHTML = ''; // Limpa cenário
+    platforms = [];
+    walls = [];
+    interactables = [];
+    hidingSpots = [];
+    papers = [];
+    monster.active = false;
+    monster.element = null;
+    sounds.passosMonster.pause();
+
+    // Cria Player
+    player.element = document.createElement('div');
+    player.element.className = 'sprite';
+    player.element.style.width = player.w + 'px';
+    player.element.style.height = player.h + 'px';
+    world.appendChild(player.element);
+    player.isDead = false;
+    player.isCrouching = false;
+
+    // Configuração Específica de cada Cena
+    if (sceneName === 'STREET') {
+        player.x = 50; player.y = window.innerHeight - 150;
+        
+        // Chão
+        createPlatform(0, window.innerHeight - 50, 2000, 50);
+        
+        // Portão (Lógica visual apenas, não bloqueia movimento físico no 2D side scroller simples, mas tem interação)
+        createInteractable(800, window.innerHeight - 150, 100, 100, 'gate');
+        
+        // Muro/Vinhas mais a frente
+        createInteractable(1600, window.innerHeight - 250, 100, 200, 'vines');
+        // Adicionar um sprite visual de muro
+        let wall = document.createElement('div');
+        wall.className = 'wall';
+        wall.style.left = '1600px'; wall.style.bottom = '50px'; wall.style.width = '100px'; wall.style.height = '300px';
+        world.appendChild(wall);
+        
+    } else if (sceneName === 'COURTYARD') {
+        player.x = 50; player.y = window.innerHeight - 150;
+        createPlatform(0, window.innerHeight - 50, 2000, 50);
+        
+        showDialogue("Ufa...\nEspero-que-a-mãe-natureza-não-fique-brava-por-mim-ter-matado-umas-vinhas-no-processo.");
+        
+        // Porta da Escola
+        createInteractable(600, window.innerHeight - 150, 80, 100, 'door');
+        
+        // Parkour
+        createPlatform(900, window.innerHeight - 200, 100, 20);
+        createPlatform(1100, window.innerHeight - 350, 100, 20);
+        createPlatform(1300, window.innerHeight - 500, 300, 20); // Topo
+        
+        // Trigger para telhado (área invisível)
+        createInteractable(1400, window.innerHeight - 600, 100, 100, 'to_roof');
+        
+    } else if (sceneName === 'ROOF') {
+        player.x = 100; player.y = window.innerHeight - 150;
+        // Telhado
+        createPlatform(0, window.innerHeight - 50, 1500, 50);
+        
+        // Janela 1 (Aberta)
+        createInteractable(600, window.innerHeight - 150, 60, 80, 'window1');
+        
+        // Janela 2 (Trancada)
+        createInteractable(1000, window.innerHeight - 150, 60, 80, 'window2');
+        
+        // Borda (Queda)
+        createInteractable(1450, window.innerHeight - 150, 50, 100, 'jump_off');
+        
+    } else if (sceneName === 'MAZE') {
+        player.x = 50; player.y = window.innerHeight - 150;
+        document.getElementById('paper-counter').classList.remove('hidden');
+        
+        // Configurar Labirinto (Plataformas e Paredes)
+        // Andar Térreo
+        createPlatform(0, window.innerHeight - 50, 3000, 50);
+        // Andar 1
+        createPlatform(300, window.innerHeight - 300, 800, 20);
+        createPlatform(1200, window.innerHeight - 300, 800, 20);
+        
+        // Esconderijos (Vasos/Armários)
+        createHidingSpot(400, window.innerHeight - 150);
+        createHidingSpot(1500, window.innerHeight - 150);
+        createHidingSpot(500, window.innerHeight - 400); // No andar de cima
+        
+        // Espalhar Páginas
+        for(let i=0; i<15; i++) {
+            createPaper(300 + (i * 150), (i % 2 == 0 ? window.innerHeight - 100 : window.innerHeight - 350));
+        }
+        
+        // Inicializar Monstro
+        spawnMonster(2000, window.innerHeight - 170);
     }
-    document.getElementById('game-container').classList.remove('hidden');
+    
+    gameLoop();
+}
+
+function createPlatform(x, y, w, h) {
+    let p = document.createElement('div');
+    p.className = 'platform';
+    p.style.left = x + 'px'; p.style.top = y + 'px';
+    p.style.width = w + 'px'; p.style.height = h + 'px';
+    world.appendChild(p);
+    platforms.push({x, y, w, h});
+}
+
+function createInteractable(x, y, w, h, type) {
+    let i = document.createElement('div');
+    i.className = 'interactable';
+    i.style.left = x + 'px'; i.style.top = y + 'px';
+    i.style.width = w + 'px'; i.style.height = h + 'px';
+    i.dataset.type = type;
+    world.appendChild(i);
+    interactables.push({x, y, w, h, type});
+}
+
+function createHidingSpot(x, y) {
+    let h = document.createElement('div');
+    h.className = 'hiding-spot';
+    h.style.left = x + 'px'; h.style.top = (y-30) + 'px'; // Ajuste visual
+    h.style.width = '60px'; h.style.height = '100px'; // Tamanho do esconderijo
+    world.appendChild(h);
+    hidingSpots.push({x: x, y: y-30, w: 60, h: 100});
+}
+
+function createPaper(x, y) {
+    let p = document.createElement('div');
+    p.className = 'paper';
+    p.style.left = x + 'px'; p.style.top = y + 'px';
+    world.appendChild(p);
+    papers.push({x, y, w: 20, h: 25, element: p});
+}
+
+function spawnMonster(x, y) {
+    monster.active = true;
+    monster.x = x; monster.y = y;
+    monster.element = document.createElement('div');
+    monster.element.className = 'sprite';
+    monster.element.style.width = monster.w + 'px';
+    monster.element.style.height = monster.h + 'px';
+    monster.element.style.backgroundImage = `url('${assets.monster.walk}')`;
+    monster.element.style.zIndex = 10;
+    world.appendChild(monster.element);
+    sounds.passosMonster.play();
+}
+
+// --- GAME LOOP & FÍSICA ---
+function gameLoop() {
+    if (gameState !== 'PLAYING') return;
+
+    // Física Player
+    if (keys['arrowleft'] || keys['a']) {
+        player.vx = -player.speed;
+        player.facingLeft = true;
+    } else if (keys['arrowright'] || keys['d']) {
+        player.vx = player.speed;
+        player.facingLeft = false;
+    } else {
+        player.vx = 0;
+    }
+    
+    // Agachar e Esconder
+    player.isCrouching = false;
+    if ((keys['arrowdown'] || keys['s']) && player.grounded) {
+        player.isCrouching = true;
+        player.vx = 0; // Para de andar ao agachar
+    }
+
+    // Gravidade
+    player.vy += 0.8;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    // Colisão Plataforma
+    player.grounded = false;
+    platforms.forEach(p => {
+        if (player.x < p.x + p.w && player.x + player.w > p.x &&
+            player.y + player.h > p.y && player.y + player.h < p.y + p.h + 20 &&
+            player.vy >= 0) {
+            player.grounded = true;
+            player.vy = 0;
+            player.y = p.y - player.h;
+        }
+    });
+
+    // Limites da tela (Chão infinito para evitar cair no vazio em fases normais)
+    if (player.y > window.innerHeight) {
+        if (currentScene === 'ROOF') {
+            triggerGameOver('falling');
+            return;
+        } else {
+            player.y = window.innerHeight - player.h; player.vy = 0; player.grounded = true;
+        }
+    }
+
+    updatePlayerAnimation();
+    updateCamera();
+    checkProximity();
+
+    // Lógica do Monstro (Maze)
+    if (currentScene === 'MAZE' && monster.active && !monster.attacking) {
+        // AI Simples: Perseguir se não estiver escondido
+        let dist = player.x - monster.x;
+        let isHidden = false;
+        
+        if (player.isCrouching) {
+            hidingSpots.forEach(spot => {
+                if (checkCollision(player, spot)) isHidden = true;
+            });
+        }
+
+        if (!isHidden && Math.abs(dist) < 800) {
+            // Persegue
+            if (dist > 0) { monster.x += monster.speed; monster.facingLeft = false; }
+            else { monster.x -= monster.speed; monster.facingLeft = true; }
+        } else {
+            // Patrulha básica
+            monster.x += (monster.facingLeft ? -2 : 2);
+            if(monster.x < 0) monster.facingLeft = false;
+            if(monster.x > 3000) monster.facingLeft = true;
+        }
+
+        // Colisão com Player (Hitkill)
+        if (!isHidden && checkCollision(player, monster)) {
+            killPlayer();
+        }
+
+        // Render Monstro
+        monster.element.style.transform = `translate(${monster.x}px, ${monster.y}px) ${monster.facingLeft ? 'scaleX(1)' : 'scaleX(-1)'}`;
+        
+        // Coletar Papéis
+        papers.forEach((p, index) => {
+            if(p.element && checkCollision(player, p)) {
+                p.element.remove();
+                delete papers[index];
+                papersCollected++;
+                document.getElementById('count').innerText = papersCollected;
+                if(papersCollected >= totalPapers) finishGame();
+            }
+        });
+    }
+
+    // Render Player
+    player.element.style.transform = `translate(${player.x}px, ${player.y}px) ${player.facingLeft ? 'scaleX(1)' : 'scaleX(-1)'}`;
+
     requestAnimationFrame(gameLoop);
 }
 
-function restartFromWindow() {
-    lastCheckpoint = 'WINDOW';
-    currentLevel = 'MAZE';
-    player.dead = false;
-    player.x = 100;
-    player.y = canvas.height - 150;
-    monster.active = true;
-    monster.x = canvas.width - 200;
-    papersCollected = 0;
-    paperCountDisplay.innerText = "0";
-    
-    // Reset objects
-    mazeObjects = generateMaze(); 
-    
-    document.getElementById('game-over-screen').classList.add('hidden');
-    gameState = 'PLAYING';
-    audios.passos.play();
-}
+function updatePlayerAnimation() {
+    let anim = assets.player.idle;
+    if (player.isDead) anim = assets.player.dead;
+    else if (player.isCrouching) anim = assets.player.crouch;
+    else if (!player.grounded) anim = assets.player.jump;
+    else if (Math.abs(player.vx) > 0) anim = assets.player.walk;
 
-// --- Levels & Logic ---
-
-// Objetos do jogo (Plataformas, interativos)
-let gameObjects = [];
-let mazeObjects = [];
-
-function loadLevel(level) {
-    gameObjects = [];
-    currentLevel = level;
-    
-    if (level === 'STREET') {
-        // Chão
-        gameObjects.push({type: 'platform', x: 0, y: canvas.height - 50, w: canvas.width * 2, h: 50, color: '#1a1a1a'});
-        // Portão
-        gameObjects.push({type: 'gate', x: 600, y: canvas.height - 250, w: 100, h: 200, interact: true, msg: "O portão está trancado"});
-        // Vinhas
-        gameObjects.push({type: 'vines', x: canvas.width - 150, y: canvas.height - 350, w: 100, h: 300, interact: true});
-    }
-    else if (level === 'COURTYARD') {
-        player.x = 50;
-        // Chão
-        gameObjects.push({type: 'platform', x: 0, y: canvas.height - 50, w: canvas.width, h: 50, color: '#222'});
-        // Porta
-        gameObjects.push({type: 'door', x: 300, y: canvas.height - 250, w: 80, h: 200, interact: true, msg: "Trancada."});
-        // Parkour
-        gameObjects.push({type: 'platform', x: 600, y: canvas.height - 200, w: 100, h: 20, color: '#444'});
-        gameObjects.push({type: 'platform', x: 750, y: canvas.height - 350, w: 100, h: 20, color: '#444'});
-        gameObjects.push({type: 'platform', x: 600, y: canvas.height - 500, w: 100, h: 20, color: '#444'});
-        // Trigger de topo
-        gameObjects.push({type: 'trigger_roof', x: 500, y: 0, w: 300, h: 50});
-    }
-    else if (level === 'ROOF') {
-        player.x = 100; player.y = canvas.height - 300;
-        // Telhado
-        gameObjects.push({type: 'platform', x: 0, y: canvas.height - 100, w: 300, h: 100, color: '#111'});
-        gameObjects.push({type: 'platform', x: 400, y: canvas.height - 100, w: 600, h: 100, color: '#111'}); // Gap no meio
-        // Janelas
-        gameObjects.push({type: 'window1', x: 500, y: canvas.height - 250, w: 60, h: 80, interact: true});
-        gameObjects.push({type: 'window2', x: 800, y: canvas.height - 250, w: 60, h: 80, interact: true, msg: "Trancada."});
-    }
-    else if (level === 'MAZE') {
-        mazeObjects = generateMaze();
-        monster.active = true;
-        monster.x = canvas.width - 100;
-        audios.passos.play();
-        hud.classList.remove('hidden');
+    if (player.element.style.backgroundImage !== `url("${anim}")`) {
+        player.element.style.backgroundImage = `url("${anim}")`;
     }
 }
 
-function generateMaze() {
-    let objs = [];
-    // Chão base
-    objs.push({type: 'platform', x: 0, y: canvas.height - 50, w: canvas.width * 3, h: 50, color: '#221111'});
-    
-    // Vasos para esconder (simples lógica: se player colide e agacha, fica invisivel)
-    for(let i=0; i<4; i++) {
-        objs.push({type: 'hideout', x: 300 + (i*400), y: canvas.height - 150, w: 80, h: 100});
-    }
-    
-    // Papeis
-    for(let i=0; i<15; i++) {
-        objs.push({type: 'paper', x: Math.random() * (canvas.width * 2) + 200, y: canvas.height - 200, w: 30, h: 40, collected: false});
-    }
-    
-    return objs;
+function updateCamera() {
+    // Scroll lateral simples
+    let offset = player.x - window.innerWidth / 2;
+    if (offset < 0) offset = 0;
+    world.style.transform = `translateX(-${offset}px)`;
+    // Ajustar backgrounds se necessário
 }
-
-// --- Physics & Updates ---
 
 function checkCollision(rect1, rect2) {
+    if(!rect2) return false;
     return (rect1.x < rect2.x + rect2.w &&
             rect1.x + rect1.w > rect2.x &&
             rect1.y < rect2.y + rect2.h &&
             rect1.y + rect1.h > rect2.y);
 }
 
-function update() {
-    if (gameState !== 'PLAYING') return;
-
-    // Player Physics
-    if (keys.right) { player.vx = player.speed; player.facingLeft = false; }
-    else if (keys.left) { player.vx = -player.speed; player.facingLeft = true; }
-    else { player.vx = 0; }
-
-    // Pular
-    if (keys.up && player.grounded) {
-        player.vy = -player.jumpForce;
-        player.grounded = false;
-    }
-
-    // Agachar
-    if (keys.down) {
-        player.crouching = true;
-        player.vx = 0; // Para ao agachar
-    } else {
-        player.crouching = false;
-    }
-
-    player.vy += player.gravity;
-    player.x += player.vx;
-    player.y += player.vy;
-
-    // Limites de tela (depende da fase)
-    if (player.x < 0) player.x = 0;
-    
-    // Queda no buraco (Telhado)
-    if (player.y > canvas.height) {
-        if (currentLevel === 'ROOF') triggerDeath('fall');
-    }
-
-    // Colisão com Plataformas
-    player.grounded = false;
-    let list = currentLevel === 'MAZE' ? mazeObjects : gameObjects;
-    
-    list.forEach(obj => {
-        if (obj.type === 'platform') {
-            if (player.y + player.h > obj.y && player.y + player.h < obj.y + player.vy + 20 &&
-                player.x + player.w > obj.x && player.x < obj.x + obj.w) {
-                player.y = obj.y - player.h;
-                player.vy = 0;
-                player.grounded = true;
-            }
-        }
-        
-        // Coleta de Papel
-        if (obj.type === 'paper' && !obj.collected) {
-            if (checkCollision(player, obj)) {
-                obj.collected = true;
-                papersCollected++;
-                paperCountDisplay.innerText = papersCollected;
-                if(papersCollected >= 15) triggerEnding();
-            }
-        }
-
-        // Interação
-        if (keys.interact && obj.interact && checkCollision(player, obj)) {
-            keys.interact = false; // Debounce
-            if (obj.msg) {
-                // Mostrar texto temporário no canvas ou console por simplicidade
-                alert(obj.msg); // Trocar por overlay bonito se der tempo
-            } else if (obj.type === 'vines') {
-                transitionScene('COURTYARD', audios.vinhas, "Ufa...\nEspero-que-a-mãe-natureza-não-fique-brava-por-mim-ter-matado-umas-vinhas-no-processo.");
-            } else if (obj.type === 'window1') {
-                transitionScene('MAZE', audios.janela, null);
-            }
-        }
-        
-        // Trigger Roof
-        if (obj.type === 'trigger_roof' && checkCollision(player, obj)) {
-            transitionScene('ROOF', null, null);
+function checkProximity() {
+    let near = false;
+    interactables.forEach(i => {
+        let dist = Math.abs((player.x + player.w/2) - (i.x + i.w/2));
+        if (dist < 80 && Math.abs((player.y) - (i.y)) < 100) {
+            near = true;
+            uiPrompt.classList.remove('hidden');
         }
     });
-
-    // Animação Player
-    updatePlayerAnimation();
-
-    // Monster Logic (Maze)
-    if (currentLevel === 'MAZE' && monster.active) {
-        updateMonster();
-    }
+    if (!near) uiPrompt.classList.add('hidden');
 }
 
-function updateMonster() {
-    // Patrulha simples: vai na direção do player
-    let dx = player.x - monster.x;
-    
-    // Se player está escondido (colidindo com hideout e agachado)
-    let isHidden = false;
-    mazeObjects.forEach(obj => {
-        if (obj.type === 'hideout' && checkCollision(player, obj) && player.crouching) {
-            isHidden = true;
+function tryInteract() {
+    interactables.forEach(i => {
+        let dist = Math.abs((player.x + player.w/2) - (i.x + i.w/2));
+        if (dist < 80 && Math.abs((player.y) - (i.y)) < 100) {
+            handleInteraction(i.type);
         }
     });
-
-    if (!isHidden) {
-        // Perseguir
-        if (Math.abs(dx) < 600) { // Distancia de visão
-            monster.x += Math.sign(dx) * monster.speed;
-            monster.facingLeft = dx < 0;
-        } else {
-            // Random walk
-            monster.x += (Math.random() - 0.5) * 2;
-        }
-        
-        // Matar
-        if (checkCollision(player, monster)) {
-            triggerDeath('monster');
-        }
-    } else {
-        // Passa reto
-        monster.x += (monster.facingLeft ? -1 : 1) * monster.speed;
-    }
-    
-    // Atualizar sprite monstro
-    if (monster.active) {
-        // Assumindo ataque ou andar
-        let src = checkCollision(player, monster) ? 'monster/ataque.gif' : 'monster/andar.gif';
-        // Atualiza src apenas se mudar para evitar recarregar gif
-        if (!monsterSprite.src.includes(src)) monsterSprite.src = `/static/${src}`;
-        
-        monsterSprite.style.left = monster.x + 'px';
-        monsterSprite.style.top = (monster.y + (canvas.height - 150)) + 'px'; // Ajuste Y
-        monsterSprite.style.transform = `scaleX(${monster.facingLeft ? 1 : -1})`;
-        monsterSprite.classList.remove('hidden');
-    }
 }
 
-function triggerDeath(reason) {
-    gameState = 'GAMEOVER';
-    player.dead = true;
-    audios.passos.pause();
+function handleInteraction(type) {
+    if (type === 'gate') showDialogue("O portão está trancado.");
     
-    if (reason === 'monster') {
-        audios.ataque.play();
+    if (type === 'vines') {
+        blackScreen.classList.remove('hidden');
+        blackScreen.style.opacity = 1;
+        sounds.vinhas.play();
+        sounds.vinhas.onended = () => {
+            loadScene('COURTYARD');
+            blackScreen.style.opacity = 0;
+            setTimeout(() => blackScreen.classList.add('hidden'), 1000);
+        };
+    }
+    
+    if (type === 'door') showDialogue("Trancada... Parece que vou ter que achar outro jeito.");
+    
+    if (type === 'to_roof') {
+        blackScreen.classList.remove('hidden');
+        blackScreen.style.opacity = 1;
         setTimeout(() => {
-            audios.playerDead.play();
-            playerSprite.src = getAsset('player', 'morri.gif');
-            showGameOver();
-        }, 500); // Tempo do hitkill
-    } else {
-        audios.grito.play();
-        showGameOver();
-    }
-}
-
-function showGameOver() {
-    setTimeout(() => {
-        document.getElementById('game-over-screen').classList.remove('hidden');
-        if(currentLevel === 'MAZE') {
-            document.getElementById('restart-window-btn').classList.remove('hidden');
-        }
-    }, 2000);
-}
-
-function transitionScene(nextLevel, soundEffect, text) {
-    gameState = 'TRANSITION';
-    const transition = () => {
-        loadLevel(nextLevel);
-        if (text) {
-             typeWriter(text, () => gameState = 'PLAYING');
-        } else {
-            gameState = 'PLAYING';
-        }
-    };
-
-    // Fade out visual simulation
-    let fade = document.createElement('div');
-    fade.style.position = 'absolute'; fade.style.top=0; fade.style.width='100%'; fade.style.height='100%'; fade.style.background='black'; fade.style.opacity=0; fade.style.transition='opacity 1s';
-    document.body.appendChild(fade);
-    
-    setTimeout(() => fade.style.opacity = 1, 10);
-
-    if (soundEffect) soundEffect.play();
-
-    setTimeout(() => {
-        transition();
-        setTimeout(() => {
-            fade.style.opacity = 0;
-            setTimeout(() => fade.remove(), 1000);
+            loadScene('ROOF');
+            blackScreen.style.opacity = 0;
+            setTimeout(() => blackScreen.classList.add('hidden'), 1000);
         }, 1000);
-    }, 2000);
+    }
+    
+    if (type === 'jump_off') {
+        triggerGameOver('falling');
+    }
+    
+    if (type === 'window2') showDialogue("Essa janela não abre.");
+    
+    if (type === 'window1') {
+        blackScreen.classList.remove('hidden');
+        blackScreen.style.opacity = 1;
+        sounds.janela.play();
+        sounds.janela.onended = () => {
+            loadScene('MAZE');
+            blackScreen.style.opacity = 0;
+            setTimeout(() => blackScreen.classList.add('hidden'), 1000);
+        };
+    }
 }
 
-function triggerEnding() {
+function killPlayer() {
+    player.isDead = true;
+    monster.attacking = true;
+    monster.element.style.backgroundImage = `url('${assets.monster.attack}')`;
+    sounds.ataqueMonster.play();
+    sounds.playerDead.play();
+    
+    setTimeout(() => {
+        monster.attacking = false; // Volta a andar (lógica visual)
+        triggerGameOver('killed');
+    }, 1500); // Tempo da animação de morte
+}
+
+function triggerGameOver(reason) {
+    gameState = 'GAMEOVER';
+    if(reason === 'falling') sounds.grito.play();
+    document.getElementById('game-over-screen').classList.remove('hidden');
+}
+
+function finishGame() {
     gameState = 'ENDING';
-    audios.passos.pause();
+    blackScreen.classList.remove('hidden');
+    blackScreen.style.opacity = 1;
+    
     const endText = "Nunca-mais-quis-voltar-naquela-escola...\nPensei-em-contar-para-meus-colegas-o-que-vi-lá...\nMas-quem-acreditaria...?\nPra-ser-sincera...\nNem-eu-sei-o-que-vi-lá...\nFalei-para-minha-mãe-que-estava-com-problemas-na-escola...\nEla-me-tirou-daquele-lugar...\nMas-o-que-será-dos-outros-alunos...";
     
-    let fade = document.createElement('div');
-    fade.style.position = 'absolute'; fade.style.top=0; fade.style.width='100%'; fade.style.height='100%'; fade.style.background='black'; fade.style.zIndex=500;
-    document.body.appendChild(fade);
-    
     setTimeout(() => {
-        typeWriter(endText, () => {
-            location.reload(); // Volta ao menu
+        typeWriter(endText, introText, () => {
+            setTimeout(() => {
+                location.reload();
+            }, 5000);
         });
     }, 1000);
 }
-
-// --- Render ---
-
-function updatePlayerAnimation() {
-    let anim = 'parada.gif';
-    if (player.dead) anim = 'morri.gif';
-    else if (player.crouching) anim = 'agachar.gif';
-    else if (!player.grounded) anim = 'pulando.gif';
-    else if (Math.abs(player.vx) > 0) anim = 'andando.gif';
-    
-    let fullPath = getAsset('player', anim);
-    // Só troca o src se for diferente para não resetar o GIF
-    if (!playerSprite.src.includes(anim)) {
-        playerSprite.src = fullPath;
-    }
-
-    // Flip Horizontal (CSS) - O prompt diz que as anims olham para a esquerda nativamente
-    // Se facingLeft é true, scaleX(1). Se false, scaleX(-1).
-    playerSprite.style.transform = `scaleX(${player.facingLeft ? 1 : -1})`;
-    
-    // Sync Position
-    playerSprite.style.left = player.x + 'px';
-    playerSprite.style.top = player.y + 'px';
-    playerSprite.style.width = player.w + 'px';
-    playerSprite.style.height = player.h + 'px';
-}
-
-function draw() {
-    // Limpar Canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Ambiente
-    if (currentLevel === 'STREET') {
-        // Lua
-        ctx.fillStyle = '#fffa';
-        ctx.beginPath(); ctx.arc(100, 100, 40, 0.4, 1.8 * Math.PI, true); ctx.fill();
-    }
-    
-    // Desenhar Objetos
-    let list = currentLevel === 'MAZE' ? mazeObjects : gameObjects;
-    list.forEach(obj => {
-        if (obj.type === 'platform') {
-            ctx.fillStyle = obj.color || '#333';
-            ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
-        } else if (obj.type === 'gate') {
-            ctx.strokeStyle = '#555'; ctx.lineWidth = 5; ctx.strokeRect(obj.x, obj.y, obj.w, obj.h);
-            // Grades
-            for(let i=10; i<obj.w; i+=10) {
-                ctx.beginPath(); ctx.moveTo(obj.x+i, obj.y); ctx.lineTo(obj.x+i, obj.y+obj.h); ctx.stroke();
-            }
-        } else if (obj.type === 'vines') {
-            ctx.fillStyle = 'green';
-            ctx.fillRect(obj.x, obj.y, obj.w, obj.h); // Placeholder para vinhas
-        } else if (obj.type === 'door' || obj.type.includes('window')) {
-            ctx.fillStyle = '#222'; ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
-            ctx.strokeStyle = '#666'; ctx.strokeRect(obj.x, obj.y, obj.w, obj.h);
-        } else if (obj.type === 'hideout') {
-            ctx.fillStyle = '#3a2a1a'; // Vaso/Movel
-            ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
-        } else if (obj.type === 'paper' && !obj.collected) {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
-        }
-    });
-}
-
-function gameLoop() {
-    update();
-    draw();
-    if (gameState !== 'MENU') requestAnimationFrame(gameLoop);
-}
-
-// Inicialização
-loadLevel('STREET');
