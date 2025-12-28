@@ -3,48 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>School of F - Horror Game</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Escola Noturna</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <div id="menu-screen">
-        <h1>ESCOLA DE HORROR</h1>
-        <div class="grade-paper">
-            <p>PROVA FINAL</p>
-            <h2 class="grade-f">F</h2>
+    <div id="game-container">
+        <div id="background-layer">
+            <div id="moon"></div>
         </div>
-        <button id="start-btn">COMEÇAR</button>
-    </div>
 
-    <div id="dialogue-screen" class="hidden">
-        <p id="typing-text"></p>
-    </div>
+        <div id="world"></div>
 
-    <div id="game-over-screen" class="hidden">
-        <h1>VOCÊ MORREU</h1>
-        <div class="options">
+        <div id="ui-layer">
+            <div id="paper-counter" class="hidden">Páginas: <span id="count">0</span>/15</div>
+            <div id="dialogue-box" class="hidden"></div>
+            <div id="interaction-prompt" class="hidden">Pressione [E]</div>
+        </div>
+
+        <div id="black-screen" class="hidden">
+            <div id="intro-text"></div>
+        </div>
+
+        <div id="start-screen">
+            <div class="menu-content">
+                <h1>REPROVADO</h1>
+                <div class="f-grade">F</div>
+                <p>Escola Estadual Sombria</p>
+                <button id="btn-start">COMEÇAR</button>
+            </div>
+        </div>
+
+        <div id="game-over-screen" class="hidden">
+            <h1>VOCÊ MORREU</h1>
+            <button onclick="location.reload()">Recomeçar</button>
             <button onclick="location.reload()">Voltar ao Menu</button>
-            <button onclick="startGame(true)">Recomeçar do Início</button>
-            <button id="restart-window-btn" class="hidden" onclick="restartFromWindow()">Recomeçar da Janela</button>
         </div>
     </div>
 
-    <div id="game-container" class="hidden">
-        <canvas id="game-canvas"></canvas>
-        <img id="player-sprite" src="{{ url_for('static', filename='player/parada.gif') }}" alt="Player">
-        <img id="monster-sprite" src="{{ url_for('static', filename='monster/andar.gif') }}" class="hidden" alt="Monster">
-        <div id="hud">Páginas: <span id="paper-count">0</span>/15</div>
-    </div>
+    <audio id="audio-inicial" src="inicial.mp3" loop></audio>
+    <audio id="audio-vinhas" src="player/vinhas.mp3"></audio>
+    <audio id="audio-grito" src="player/grito.mp3"></audio>
+    <audio id="audio-janela" src="player/janela.mp3"></audio>
+    <audio id="audio-passos-monster" src="monster/passosmonster.mp3" loop></audio>
+    <audio id="audio-monster-ataque" src="monster/monsterataque.mp3"></audio>
+    <audio id="audio-player-dead" src="player/playerdead.mp3"></audio>
 
-    <audio id="audio-inicial" src="{{ url_for('static', filename='inicial.mp3') }}" loop></audio>
-    <audio id="audio-vinhas" src="{{ url_for('static', filename='player/vinhas.mp3') }}"></audio>
-    <audio id="audio-grito" src="{{ url_for('static', filename='player/grito.mp3') }}"></audio>
-    <audio id="audio-janela" src="{{ url_for('static', filename='player/janela.mp3') }}"></audio>
-    <audio id="audio-passos-monster" src="{{ url_for('static', filename='monster/passosmonster.mp3') }}" loop></audio>
-    <audio id="audio-monster-ataque" src="{{ url_for('static', filename='monster/monsterataque.mp3') }}"></audio>
-    <audio id="audio-player-dead" src="{{ url_for('static', filename='player/playerdead.mp3') }}"></audio>
-
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="script.js"></script>
 </body>
 </html>
