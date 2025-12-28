@@ -1,80 +1,205 @@
-@import url('https://fonts.googleapis.com/css2?family=Creepster&family=Courier+Prime&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Creepster&family=Roboto+Mono:wght@400;700&display=swap');
 
-body {
+:root {
+    --bg-dark: #050505;
+    --bg-night: #0a0a1a;
+    --text-horror: #d1d1d1;
+    --highlight: #8a0000;
+}
+
+body, html {
     margin: 0;
     padding: 0;
-    background-color: #050505;
-    color: white;
-    font-family: 'Courier Prime', monospace;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
     overflow: hidden;
+    font-family: 'Roboto Mono', monospace;
     user-select: none;
 }
 
-.hidden { display: none !important; }
-
-/* Menu */
-#menu-screen {
-    position: absolute;
-    width: 100%;
+#game-container {
+    position: relative;
+    width: 100vw;
     height: 100vh;
+    background: linear-gradient(to bottom, #020005, #1a1a2e);
+    overflow: hidden;
+}
+
+/* --- Elementos de Ambiente --- */
+#moon {
+    position: absolute;
+    top: 50px;
+    right: 100px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    box-shadow: -15px 0 0 0 #e0e0e0; /* Lua minguante */
+    transform: rotate(-15deg);
+    opacity: 0.8;
+    filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.2));
+}
+
+.platform {
+    position: absolute;
+    background-color: #111;
+    border-top: 2px solid #333;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.8);
+}
+
+.wall {
+    position: absolute;
+    background-color: #0d0d0d;
+    border-left: 1px solid #222;
+}
+
+.interactable {
+    position: absolute;
+    /* Debug visual: border: 1px dashed yellow; */
+    z-index: 5;
+}
+
+.hiding-spot {
+    position: absolute;
+    bottom: 0;
+    z-index: 15; /* Na frente do player */
+    opacity: 0.9;
+    background-size: cover;
+    /* Exemplo visual simples para vaso/armário se não tiver imagem */
+    background: linear-gradient(to right, #222, #111, #222);
+    border: 1px solid #333;
+}
+
+.paper {
+    position: absolute;
+    width: 20px;
+    height: 25px;
+    background: #fff;
+    box-shadow: 0 0 10px white;
+    animation: float 2s infinite ease-in-out;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+/* --- Entidades --- */
+.sprite {
+    position: absolute;
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: bottom center;
+}
+
+/* Player e Monstro - Direção Padrão (Assets virados p/ esquerda) */
+.facing-left {
+    transform: scaleX(1);
+}
+.facing-right {
+    transform: scaleX(-1);
+}
+
+/* --- UI e Menus --- */
+#ui-layer, #start-screen, #game-over-screen, #black-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Deixa clicar no jogo, exceto quando precisa interagir */
     display: flex;
-    flex-direction: column;
     justify-content: center;
     align-items: center;
-    background: radial-gradient(circle, #2a0000 0%, #000000 90%);
     z-index: 100;
 }
 
-h1 { font-family: 'Creepster', cursive; font-size: 4rem; color: #a00; text-shadow: 0 0 10px #f00; }
-
-.grade-paper {
-    background: #fff;
-    color: #000;
-    padding: 20px;
-    width: 150px;
-    height: 200px;
-    transform: rotate(-5deg);
-    box-shadow: 0 0 20px rgba(0,0,0,0.8);
-    text-align: center;
-    margin: 20px;
+#start-screen, #game-over-screen {
+    background: rgba(0, 0, 0, 0.85);
+    pointer-events: auto;
+    flex-direction: column;
+    color: var(--text-horror);
 }
 
-.grade-f { font-size: 5rem; color: red; margin: 0; font-family: 'Creepster', cursive; border: 3px solid red; border-radius: 50%; display: inline-block; padding: 10px; transform: rotate(-15deg); }
+.menu-content {
+    text-align: center;
+    border: 2px solid #333;
+    padding: 40px;
+    background: #0f0f0f;
+    box-shadow: 0 0 50px rgba(0,0,0,1);
+}
+
+h1 { font-family: 'Creepster', cursive; font-size: 4rem; margin: 0; color: #8a0000; text-shadow: 2px 2px 0 #000; }
+
+.f-grade {
+    font-family: 'Creepster', cursive;
+    font-size: 8rem;
+    color: red;
+    border: 4px solid red;
+    border-radius: 50%;
+    width: 150px;
+    height: 150px;
+    line-height: 150px;
+    margin: 20px auto;
+    transform: rotate(-20deg);
+}
 
 button {
-    background: #333; color: white; border: 1px solid #555; padding: 15px 30px; font-family: 'Courier Prime'; font-size: 1.2rem; cursor: pointer; transition: 0.3s; margin: 5px;
-}
-button:hover { background: #a00; border-color: red; }
-
-/* Dialogos */
-#dialogue-screen {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: black; display: flex; align-items: center; justify-content: center; z-index: 90;
-}
-#typing-text { font-size: 1.5rem; max-width: 80%; line-height: 1.5; color: #ddd; white-space: pre-wrap; }
-
-/* Game Container */
-#game-container { position: relative; width: 100%; height: 100vh; background: #111; }
-canvas { display: block; width: 100%; height: 100%; }
-
-/* Sprites Híbridos */
-#player-sprite, #monster-sprite {
-    position: absolute;
-    transform-origin: center bottom;
-    /* Ajuste inicial, será controlado pelo JS */
-    width: 64px; 
-    height: 64px;
+    background: #333;
+    color: white;
+    border: 1px solid #555;
+    padding: 15px 30px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 1.2rem;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: 0.3s;
 }
 
-#hud {
-    position: absolute; top: 20px; right: 20px; font-size: 1.5rem; color: #fff; font-family: 'Creepster';
-}
+button:hover { background: #500; border-color: red; }
 
-/* Game Over */
-#game-over-screen {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.95);
+#black-screen {
+    background-color: black;
     z-index: 200;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    opacity: 1;
+    transition: opacity 2s ease;
 }
-#game-over-screen h1 { color: #800; }
+
+#intro-text, #dialogue-box {
+    color: white;
+    font-size: 1.2rem;
+    max-width: 80%;
+    text-align: center;
+    line-height: 1.6;
+    text-shadow: 0 0 5px white;
+}
+
+#dialogue-box {
+    position: absolute;
+    bottom: 50px;
+    background: rgba(0,0,0,0.7);
+    padding: 20px;
+    border: 1px solid #555;
+    pointer-events: auto;
+}
+
+#interaction-prompt {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-weight: bold;
+    text-shadow: 1px 1px 0 black;
+}
+
+#paper-counter {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: white;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.hidden { display: none !important; }
