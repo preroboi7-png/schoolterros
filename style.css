@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Creepster&family=Courier+Prime&display=swap');
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #050505;
+    color: white;
+    font-family: 'Courier Prime', monospace;
+    overflow: hidden;
+    user-select: none;
+}
+
+.hidden { display: none !important; }
+
+/* Menu */
+#menu-screen {
+    position: absolute;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: radial-gradient(circle, #2a0000 0%, #000000 90%);
+    z-index: 100;
+}
+
+h1 { font-family: 'Creepster', cursive; font-size: 4rem; color: #a00; text-shadow: 0 0 10px #f00; }
+
+.grade-paper {
+    background: #fff;
+    color: #000;
+    padding: 20px;
+    width: 150px;
+    height: 200px;
+    transform: rotate(-5deg);
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    text-align: center;
+    margin: 20px;
+}
+
+.grade-f { font-size: 5rem; color: red; margin: 0; font-family: 'Creepster', cursive; border: 3px solid red; border-radius: 50%; display: inline-block; padding: 10px; transform: rotate(-15deg); }
+
+button {
+    background: #333; color: white; border: 1px solid #555; padding: 15px 30px; font-family: 'Courier Prime'; font-size: 1.2rem; cursor: pointer; transition: 0.3s; margin: 5px;
+}
+button:hover { background: #a00; border-color: red; }
+
+/* Dialogos */
+#dialogue-screen {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: black; display: flex; align-items: center; justify-content: center; z-index: 90;
+}
+#typing-text { font-size: 1.5rem; max-width: 80%; line-height: 1.5; color: #ddd; white-space: pre-wrap; }
+
+/* Game Container */
+#game-container { position: relative; width: 100%; height: 100vh; background: #111; }
+canvas { display: block; width: 100%; height: 100%; }
+
+/* Sprites Híbridos */
+#player-sprite, #monster-sprite {
+    position: absolute;
+    transform-origin: center bottom;
+    /* Ajuste inicial, será controlado pelo JS */
+    width: 64px; 
+    height: 64px;
+}
+
+#hud {
+    position: absolute; top: 20px; right: 20px; font-size: 1.5rem; color: #fff; font-family: 'Creepster';
+}
+
+/* Game Over */
+#game-over-screen {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.95);
+    z-index: 200;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+#game-over-screen h1 { color: #800; }
